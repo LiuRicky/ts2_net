@@ -5,6 +5,7 @@ import torch.nn.functional as F
 ###########################################
 ############# differential topK ###########
 ###########################################
+# Calculation of differential topK is based on [Top-K](https://arxiv.org/pdf/2104.03059.pdf), thanks
 class PerturbedTopK(nn.Module):
     def __init__(self, k: int, num_samples: int=500, sigma: float=0.05):
         super().__init__()
@@ -52,6 +53,10 @@ class PerturbedTopKFuntion(torch.autograd.Function):
         )
         grad_input = torch.einsum("bkd,bkd->bd", grad_output, expected_gradient)
         return (grad_input,) + tuple([None]*5)
+
+###########################################
+############# differential topK ###########
+###########################################
 
 class PredictorLG(nn.Module):
     """ Image to Patch Embedding
@@ -294,7 +299,3 @@ class TextTokenSelection(nn.Module):
         output = torch.cat((cls_x_feature, selected_patch_feature), dim=1) # shape here is (bs, topkPatches, hid_dim)
 
         return output
-
-###########################################
-############# differential topK ###########
-###########################################

@@ -140,8 +140,6 @@ class CLIP4ClipPreTrainedModel(PreTrainedModel, nn.Module):
             model = cls.init_preweight(model, state_dict, task_config=task_config)
 
         make_patch_shift(model, video_frame=task_config.max_frames, n_div=7)
-        # make_token_shuffle(model, video_frame=task_config.max_frames)
-        # make_attn_visual(model)
         return model
 
 def show_log(task_config, info):
@@ -263,8 +261,6 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
 
         self.loss_fct = CrossEn()
         self.frame_match_weight = 1.0
-        self.text_prompt_len = 3
-        self.text_prompt_encoder = TextPromptEncoder(self.text_prompt_len, embed_dim)
         self.visual_prompt_len = 4
         self.visual_prompt_encoder = VideoPromptEncoder(self.visual_prompt_len, vision_width, vision_patch_size)
 
@@ -293,6 +289,7 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
 
         if self.training:
             loss = 0.
+            ### TODO: need to simplify the code to calculate similarity ####
             sim_matrix_semantic, sim_matrix_global = self.get_similarity_logits(sequence_output, visual_output, attention_mask, video_mask,
                                                     shaped=True, loose_type=self.loose_type)
             # text2video
@@ -313,49 +310,18 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
         else:
             return None
 
-    def get_sequence_prompt_embedding(self, input_ids):
-        bs = input_ids.size(0)
-        text_prompt = torch.arange(self.text_prompt_len).to(input_ids.device).unsqueeze(0) # shape here is (1, prompt_len)
-        text_prompt_embeddings = self.text_prompt_encoder(text_prompt) # shape here is (1, prompt_len, hid_dim)
-        text_prompt_embeddings = text_prompt_embeddings.expand(bs, -1, -1) # shape here is (bs, prompt_len, hid_dim)
-        return text_prompt_embeddings
-
     def get_sequence_output(self, input_ids, token_type_ids, attention_mask, shaped=False):
         if shaped is False:
             input_ids = input_ids.view(-1, input_ids.shape[-1])
             token_type_ids = token_type_ids.view(-1, token_type_ids.shape[-1])
             attention_mask = attention_mask.view(-1, attention_mask.shape[-1])
 
-        text_prompt_embeddings = self.get_sequence_prompt_embedding(input_ids)
         bs_pair = input_ids.size(0)
-        sequence_hidden = self.clip.encode_text(input_ids, text_prompt_embeddings).float()
+        sequence_hidden = self.clip.encode_text(input_ids).float()
         sequence_hidden = sequence_hidden.view(bs_pair, -1, sequence_hidden.size(-1))
         # sequence_hidden = self.text_token_selector(sequence_hidden, input_ids, attention_mask)
 
         return sequence_hidden
-
-    def get_visual_prompt_embedding(self, video, video_frame):
-        '''
-        return: visual prompt embeddings (bs, max_frames, hid_dim)
-        '''
-        bs_video_frame, c, h, w = video.shape
-        # print('video.shape: ', video.shape)
-        video_temp = video.view(-1, video_frame, c, h, w)
-        # print('video_temp.shape: ', video_temp.shape)
-        motion_tokens = video_temp[:, 1:] - video_temp[:, :-1] # motion shape here is (bs, max_frames-1, c, h, w)
-        motion_tokens = motion_tokens.view(-1, c, h, w)
-        motion_prompt_embeddings = self.visual_prompt_encoder(motion_tokens) # shape here is (bs*(max_frames-1), grid**2, hid_dim)
-        # motion_prompt_embeddings = self.visual_prompt_layer_norm(motion_prompt_embeddings)
-        motion_prompt_embeddings = motion_prompt_embeddings.view(-1, video_frame-1, motion_prompt_embeddings.shape[-2], motion_prompt_embeddings.shape[-1])
-        paddings = (
-            0,0,
-            0,0,
-            1,0
-        )
-        motion_prompt_embeddings = F.pad(motion_prompt_embeddings, paddings, "constant", 0) # shape here is (bs, max_frames, grid**2, hid_dim)
-        # print('motion_prompt_embeddings.shape: ', motion_prompt_embeddings.shape)
-        return motion_prompt_embeddings.view(-1, motion_prompt_embeddings.shape[-2], motion_prompt_embeddings.shape[-1]) # shape here is (bs*max_frames, grid**2, hid_dim)
-
 
     def get_visual_output(self, video, video_mask, shaped=False, video_frame=-1):
         if shaped is False:
@@ -364,10 +330,9 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
             b, pair, bs, ts, channel, h, w = video.shape
             video = video.view(b * pair * bs * ts, channel, h, w)
             video_frame = bs * ts
-
-        visual_prompt_embeddings = self.get_visual_prompt_embedding(video, video_frame)
+            
         bs_pair = video_mask.size(0)
-        visual_hidden = self.clip.encode_image(video, visual_prompt_embeddings, video_frame=video_frame).float()
+        visual_hidden = self.clip.encode_image(video, video_frame=video_frame).float()
         # print('visual_hidden in get_visual_output before: ', visual_hidden.shape)
         visual_hidden = visual_hidden.view(bs_pair, -1, visual_hidden.size(-1)) # shape here should be (bs, max_frames*sample_len, hid_dim)
         # print('visual_hidden in get_visual_output after: ', visual_hidden.shape)
@@ -581,20 +546,7 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
     def get_frame_similarity(self, sequence_output, visual_output, attention_mask, video_mask):
         # sequence_output shape is (bs, 1, hid_dim), visual_output shape here is (bs, max_frames, hid_dim)
         # using ffn network change sequence_output shape from (bs, 1, hid_dim) to (bs, max_frames, hid_dim)
-        # sequence_output_list = []
-        # max_frames = visual_output.shape[1]
-        # for i in range(max_frames):
-        #     sequence_output_list.append(sequence_output)
-        # sequence_output = torch.cat(sequence_output_list, dim=1)  # sequence_output.shape here is (bs, max_frames, hid_dim)
 
-        # if self.training:
-        #     visual_output = allgather(visual_output, self.task_config)
-        #     video_mask = allgather(video_mask, self.task_config)
-        #     sequence_output = allgather(sequence_output, self.task_config)
-        #     torch.distributed.barrier()
-
-        # print('visual_output.shape in frame sim', visual_output.shape)
-        # normalize and then compute similariy per frame, output tensor shape should be (bs, max_frames)
         sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True)
         visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True)
 
@@ -603,13 +555,6 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
         ## should change to visual matmul sequence due to match in test ##
         ##################################################################
         similarity_matrix = torch.einsum('mjk,nlk->mjn', visual_output, sequence_output)  # shape here should be(bs_v, max_frames, bs_s)
-        
-        # #################################################################
-        # # choose whether to select topk values, seems all is better ##
-        # #################################################################
-        # topk = 6 # visual_output.shape[1] // 3
-        # video_mask_un = video_mask_un[:, :topk]
-        # similarity_matrix = torch.topk(similarity_matrix, topk, dim=1)[0]
 
         similarity_matrix_weight = similarity_matrix * video_mask_un  # video_mask shape here is (bs_v, max_frames, 1)
         ##########  softmax nomalize  ####################
@@ -619,13 +564,6 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
         similarity_matrix = similarity_matrix_weight * similarity_matrix
         similarity_matrix = torch.sum(similarity_matrix, dim=1)
         ##########  softmax nomalize  ####################
-        
-        # # ##########  l2 nomalize  ####################
-        # similarity_matrix = similarity_matrix * video_mask_un
-        # video_mask_un_sum = torch.sum(video_mask_un, dim=1, dtype=torch.float)
-        # video_mask_un_sum[video_mask_un_sum == 0.] = 1
-        # similarity_matrix = torch.sum(similarity_matrix, dim=1) / video_mask_un_sum
-        # # ##########  l2 nomalize  ####################
 
         similarity_matrix = similarity_matrix.T # transpose here due to before transpose
         logit_scale = self.clip.logit_scale.exp()
@@ -635,7 +573,7 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
         return similarity_matrix
 
     def get_frame_selectedcls_similarity(self, sequence_output, visual_output, attention_mask, video_mask):
-        sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True) # shape here is (bs, 2, hid_dim)
+        sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True) # shape here is (bs, 1, hid_dim)
         visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True) # shape here is (bs, max_frames, hid_dim)
 
         video_mask_un = video_mask.to(dtype=torch.bool).unsqueeze(-1)
@@ -665,40 +603,5 @@ class CLIP4Clip(CLIP4ClipPreTrainedModel):
         logit_scale = self.clip.logit_scale.exp()
         similarity_matrix = logit_scale * similarity_matrix
         # print("similarity maxtrix.shape: ", similarity_matrix.shape)
-
-        return similarity_matrix
-
-    def get_frame_allcls_similarity(self, sequence_output, visual_output, attention_mask, video_mask):
-        sequence_output = sequence_output / sequence_output.norm(dim=-1, keepdim=True) # shape here is (bs, 2, hid_dim)
-        visual_output = visual_output / visual_output.norm(dim=-1, keepdim=True) # shape here is (bs, max_frames, hid_dim)
-
-        ##################################################################
-        ## should change to visual matmul sequence due to match in test ##
-        ##################################################################
-        similarity_matrix = torch.einsum('mjk,nlk->mjln', visual_output, sequence_output)  # shape here should be(bs_v, max_frames, max_words, bs_s)
-
-        attention_mask_un = attention_mask.to(dtype=torch.bool).permute(1,0).unsqueeze(0).unsqueeze(0) # attn_mask shape here is (1, 1, max_words, bs_s)
-        similarity_matrix_weight = similarity_matrix * attention_mask_un
-        ########## softmax nomalize per frame ############
-        similarity_matrix_weight = F.normalize(similarity_matrix_weight, dim=2)
-        similarity_matrix_weight = similarity_matrix_weight.masked_fill_(~attention_mask_un, -1e18)
-        similarity_matrix_weight = torch.softmax(4*similarity_matrix_weight, dim=2)
-        similarity_matrix = similarity_matrix_weight * similarity_matrix
-        similarity_matrix = torch.sum(similarity_matrix, dim=2)
-        ########## softmax nomalize per frame ############
-
-        video_mask_un = video_mask.to(dtype=torch.bool).unsqueeze(-1)
-        similarity_matrix_weight = similarity_matrix * video_mask_un  # video_mask_un shape here is (bs_v, max_frames, 1)
-        ##########  softmax nomalize  ####################
-        similarity_matrix_weight = similarity_matrix_weight / similarity_matrix_weight.norm(dim=1, keepdim=True)
-        similarity_matrix_weight = similarity_matrix_weight.masked_fill_(~video_mask_un, -1e18)
-        similarity_matrix_weight = torch.softmax(4*similarity_matrix_weight, dim=1) # normalization between frames for each frame
-        similarity_matrix = similarity_matrix_weight * similarity_matrix
-        similarity_matrix = torch.sum(similarity_matrix, dim=1)
-        ##########  softmax nomalize  ####################
-
-        similarity_matrix = similarity_matrix.T # transpose here due to before transpose
-        logit_scale = self.clip.logit_scale.exp()
-        similarity_matrix = logit_scale * similarity_matrix
 
         return similarity_matrix

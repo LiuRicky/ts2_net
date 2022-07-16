@@ -292,7 +292,7 @@ class VisualTransformer(nn.Module):
             self.conv2 = nn.Conv3d(in_channels=3, out_channels=width, kernel_size=(3, patch_size, patch_size),
                                    stride=(1, patch_size, patch_size), padding=(1, 0, 0), bias=False)
 
-    def forward(self, x: torch.Tensor, visual_prompt_embeddings: torch.Tensor, video_frame=-1):
+    def forward(self, x: torch.Tensor, video_frame=-1):
 
         if self.linear_patch == '3d':
             assert video_frame != -1
@@ -310,9 +310,6 @@ class VisualTransformer(nn.Module):
         x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
         x = x + self.positional_embedding.to(x.dtype)
         x = self.ln_pre(x)
-
-        # # visual_prompt_embeddings shape is [*, prompt_len, width]
-        # x = torch.cat([x, visual_prompt_embeddings], dim=1)  # shape = [*, grid ** 2 + 1 + len(motion_prompt_tokens), width]
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x, video_frame=video_frame)
@@ -452,77 +449,30 @@ class CLIP(nn.Module):
     def dtype(self):
         return self.visual.conv1.weight.dtype
 
-    def encode_image(self, image, visual_prompt_embeddings, return_hidden=False, video_frame=-1):
+    def encode_image(self, image, return_hidden=False, video_frame=-1):
         # with torch.no_grad():
-        hidden = self.visual(image.type(self.dtype), visual_prompt_embeddings.type(self.dtype), video_frame=video_frame)
+        hidden = self.visual(image.type(self.dtype), video_frame=video_frame)
         hidden = self.visual.ln_post(hidden) @ self.visual.proj
 
-        # ##########################################
-        # # add some random patches to visul embed #
-        # ##########################################
-        # # print('hidden shape in encode image: ', hidden.shape) 
-        # bs, seq_len, *_tmp = hidden.shape # shape here is (bs*max_frames, grid**2 + 1, hid_dim)
-        # shuffle_vis_tokens = []
-        # for bs_id in range(bs):
-        #     sample_embedding = hidden[bs_id][1:] # shape here is (seq_len, hid_dim)
-        #     random_indices = torch.randperm(seq_len-1)[0:1].sort()[0]
-        #     shuffle_vis_tokens.append(sample_embedding[random_indices].unsqueeze(0))
-        # vis_tokens = torch.cat(shuffle_vis_tokens, dim=0)
-        # x = torch.cat([hidden[:, 0, :].unsqueeze(1), vis_tokens], dim=1) # shape here is (bs, sample_len, hid_dim)
-        # # print('x shape in encode image: ', x.shape)
-        # ##########################################
-        # # add some random patches to visul embed #
-        # ##########################################
-
         return hidden
-        # return hidden[:, 0, :]
 
-        # x = hidden[:, 0, :]
-
-        # if return_hidden:
-        #     return x, hidden
-
-        # return x
-
-    def encode_text(self, text, text_prompt_embeddings, return_hidden=False):
+    def encode_text(self, text, return_hidden=False):
         # with torch.no_grad():
         x = self.token_embedding(text).type(self.dtype)  # [batch_size, n_ctx, d_model]
-        # print('text: ', text[0,:])
-        # print('text embed: ', x[0, :, :])
 
         pos_emd = self.positional_embedding[:x.size(1), :].type(self.dtype)
         x = x + pos_emd
-
-        # # add prompt embeddings
-        # prompt_len = text_prompt_embeddings.size(1)
-        # x = torch.cat((text_prompt_embeddings.type(self.dtype), x), dim=1)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
 
         hidden = self.ln_final(x).type(self.dtype) @ self.text_projection
-
-        # return hidden
-
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = hidden[torch.arange(hidden.shape[0]), text.argmax(dim=-1)] # + prompt_len]
+        x = hidden[torch.arange(hidden.shape[0]), text.argmax(dim=-1)]
         return x
 
-        # ############### get 2 cls token because long mem loss ###################
-        # two_cls = torch.topk(text, 2, dim=-1)[1].sort()[0] # shape here is (bs, 2)
-        # x_1 = hidden[torch.arange(hidden.shape[0]), two_cls[:, 0]].unsqueeze(1) # shape here is (bs, 1, hid_dim)
-        # x_2 = hidden[torch.arange(hidden.shape[0]), two_cls[:, 1]].unsqueeze(1) # shape here is (bs, 1, hid_dim)
-        # x = torch.cat([x_1, x_2], dim=1)
-        # # x = (x_2 + x_2) / 2
-        # ############### get 2 cls token because long mem loss ###################
-        
-
-        # if return_hidden:
-        #     return x, hidden
-
-        # return x
 
     def forward(self, image, text):
         image_features = self.encode_image(image)

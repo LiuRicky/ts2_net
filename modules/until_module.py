@@ -388,53 +388,6 @@ class PatchShiftModule(nn.Module):
         x = x.permute(1, 0, 2)  # NLD -> LND
 
         return self.net(x, x, x, need_weights=need_weights, attn_mask=attn_mask)
-        
-class TokenShiftModule(nn.Module):
-    def __init__(self, net, video_frame, n_div):
-        super().__init__()
-        self.net = net
-        self.video_frame = video_frame
-        self.n_div = n_div
-        logger.warning('Using patch shift!')
-    
-    def forward(self, query, key, value, key_padding_mask=None, need_weights=True, attn_mask=None):
-        # here q == k == v, psm means patch shift output
-        x = query # shape here is LND, not NLD (50, 384, 768)
-        # print("query.shape: ", query.shape)
-        x = x.permute(1, 0, 2)  # LND -> NLD
-        patch_len = x.shape[-2]
-        fold = patch_len // self.n_div
-        x = x.reshape(-1, self.video_frame, x.shape[-2], x.shape[-1])  # shape = [bs, frame, grid ** 2, width]
-        psm = torch.zeros_like(x) # shape = [bs, frame, grid ** 2, width]
-        psm[:,:,:,:] = x[:,:,:,:]
-
-        lshift_indices = torch.arange(start=1, end=patch_len, step=fold)
-        rshift_indices = torch.arange(start=1+3, end=patch_len, step=fold)
-
-        ##############left and right shift##############   
-        psm[:, 1:, lshift_indices, :] = x[:, :-1, lshift_indices, :] # f_t = f_t-1
-        psm[:, :-1, rshift_indices, :] = x[:, 1:, rshift_indices, :] # f_t = f_t+1
-        ##############left and right shift##############
-        x = psm.reshape(-1, patch_len, x.shape[-1])
-        x = x.permute(1, 0, 2)  # NLD -> LND
-
-        # calculate attention
-        x = self.net(x, x, x, need_weights=need_weights, attn_mask=attn_mask)[0]
-
-        # reshape back
-        x = x.permute(1, 0, 2)  # LND -> NLD
-        x = x.reshape(-1, self.video_frame, x.shape[-2], x.shape[-1])  # shape = [bs, frame, grid ** 2, width]
-        psm = torch.zeros_like(x) # shape = [bs, frame, grid ** 2, width]
-        psm[:,:,:,:] = x[:,:,:,:]
-
-        ##############left and right shift##############
-        psm[:, :-1, lshift_indices, :] = x[:, 1:, lshift_indices, :] # f_t = f_t+1
-        psm[:, 1:, rshift_indices, :] = x[:, :-1, rshift_indices, :] # f_t = f_t-1
-        ##############left and right shift##############
-        x = psm.reshape(-1, patch_len, x.shape[-1])
-        x = x.permute(1, 0, 2)  # NLD -> LND
-        
-        return (x,)
 
 def make_patch_shift(net, video_frame=12, shift_layers=4, n_div=7):
     '''
@@ -443,10 +396,6 @@ def make_patch_shift(net, video_frame=12, shift_layers=4, n_div=7):
     video_frame: need predefine here
     shift_layers: layers to be shift
     '''
-    # def make_trans_patch_shift(net):
-    #     # net.clip.visual.transformer.resblocks[i] is a ResidualAttentionBlock type, contain net.attn -- a nn.MultiheadAttention
-    #     # make a shift before net.attn, so it is a residual attn
-    #     net.attn = PatchShiftModule(net.attn, video_frame=video_frame, n_div=n_div)
     
     def make_trans_patch_shift(stage, shift_layers):
         # net.clip.visual.transformer.resblocks[i] is a ResidualAttentionBlock type, contain net.attn -- a nn.MultiheadAttention
@@ -460,10 +409,6 @@ def make_patch_shift(net, video_frame=12, shift_layers=4, n_div=7):
                 blocks[i].attn = PatchShiftModule(b.attn, video_frame=video_frame, n_div=n_div)
         return nn.Sequential(*blocks)
 
-    # for i in range(shift_layers):
-    #     # net.clip.visual.transformer.resblocks[i] is a ResidualAttentionBlock type, contain self.attn
-    #     # net.clip.visual.transformer.resblocks[i] = make_trans_patch_shift(net.clip.visual.transformer.resblocks[i])
-    #     # net.clip.visual.transformer.resblocks is a nn.Sequential of ResidualAttentionBlock type, ResidualAttentionBlock contain self.attn
     net.clip.visual.transformer.resblocks = make_trans_patch_shift(net.clip.visual.transformer.resblocks, shift_layers=shift_layers)
 
 class TokenShuffleModule(nn.Module):
