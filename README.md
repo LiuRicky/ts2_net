@@ -67,14 +67,15 @@ If you find this code to be useful for your research, please consider citing.
       author={Yuqi, Liu and Pengfei, Xiong and Luhui, Xu and Shengming, Cao and Qin, Jin},
       year={2022},
       booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
-}
+}-->
+<pre>
 @article{liu2022ts2net,
   title={TS2-Net: Token Shift and Selection Transformer for Text-Video Retrieval},
   author={Yuqi, Liu and Pengfei, Xiong and Luhui, Xu and Shengming, Cao and Qin, Jin},
   year={2022},
-  journal={arXiv preprint},
+  journal={arXiv preprint arxiv:2207.07852},
 }
-</pre> -->
+</pre> 
 
 ## Acknowledge
 * Our code is based on [ArrowLuo/CLIP4Clip](https://github.com/ArrowLuo/CLIP4Clip)
