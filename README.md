@@ -11,7 +11,8 @@ TS2-Net is a text-video retrieval model based on [CLIP](https://github.com/opena
 The token shift operation shift all channels of a token back-and-forth, to preserve the complete token representation and enhance the interaction of adjacent frames.
 ![tokenshift](pics/tokenshift.png)
 
-The token selection module selects tokens contributes most to the local spatial semantics, to better model video representation. (**Notion: ** In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance than metric reported in our paper. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
+The token selection module selects tokens contributes most to the local spatial semantics, to better model video representation.
+(**Notion**: In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance than metric reported in our paper. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
 ![tokenselect](pics/token_selection.png)
 ## Requirements
 ```sh
