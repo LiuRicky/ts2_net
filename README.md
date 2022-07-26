@@ -1,6 +1,6 @@
 # TS2-Net: Token Shift and Selection Transformer for Text-Video Retrieval
 
-(**July. 3, 2022**) Our paper is accepted by ECCV2022.
+(**July. 3, 2022**) Our paper is accepted by ECCV2022. This is the arxiv link of our [paper](https://arxiv.org/abs/2207.07852)
 
 This is the PyTorch code of the TS2-NET. The code has been tested on PyTorch 1.7.1.
 
@@ -12,7 +12,7 @@ The token shift operation shift all channels of a token back-and-forth, to prese
 ![tokenshift](pics/tokenshift.png)
 
 The token selection module selects tokens contributes most to the local spatial semantics, to better model video representation.
-(**Notion**: In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance than metric reported in our paper. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
+(**Note**: In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance than metric reported in our paper. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
 ![tokenselect](pics/token_selection.png)
 ## Requirements
 ```sh
