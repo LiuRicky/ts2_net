@@ -1,6 +1,6 @@
 # TS2-Net: Token Shift and Selection Transformer for Text-Video Retrieval
 
-(**July. 3, 2022**) Our paper is accepted by ECCV2022. This is the arxiv link of our [paper](https://arxiv.org/abs/2207.07852)
+(**July. 3, 2022**) Our paper is accepted by ECCV2022. Here is the [arxiv link](https://arxiv.org/abs/2207.07852) of our paper.
 
 This is the PyTorch code of the TS2-NET. The code has been tested on PyTorch 1.7.1.
 
@@ -12,7 +12,7 @@ The token shift operation shift all channels of a token back-and-forth, to prese
 ![tokenshift](pics/tokenshift.png)
 
 The token selection module selects tokens contributes most to the local spatial semantics, to better model video representation.
-(**Note**: In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance than metric reported in our paper. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
+(**Note**: In our released code, we manually regard [CLS] token as the most informative, which we find it can have better performance. It means that we select [CLS] token and other K-1 tokens in token selection stage.)
 ![tokenselect](pics/token_selection.png)
 ## Requirements
 ```sh
@@ -60,7 +60,7 @@ sh scripts/run_vatex.sh
 * Change DATA_PATH to your own data path
 * You can change --pretrained_clip_name to ViT-B/16
 
-<!-- ### Citation
+### Citation
 If you find this code to be useful for your research, please consider citing.
 <pre>
 @inproceedings{liu2022ts2net,
@@ -68,7 +68,7 @@ If you find this code to be useful for your research, please consider citing.
       author={Yuqi, Liu and Pengfei, Xiong and Luhui, Xu and Shengming, Cao and Qin, Jin},
       year={2022},
       booktitle={Proceedings of the European Conference on Computer Vision (ECCV)},
-}-->
+}
 <pre>
 @article{liu2022ts2net,
   title={TS2-Net: Token Shift and Selection Transformer for Text-Video Retrieval},
