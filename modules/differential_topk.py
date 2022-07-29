@@ -75,8 +75,9 @@ class PredictorLG(nn.Module):
             # nn.Linear(embed_dim // 2, embed_dim // 4, bias=False),
             # nn.GELU(),
             nn.Linear(embed_dim // 2, 1, bias=False),
-            #  nn.Tanh()
-            nn.Softmax(dim=-1)
+            nn.Tanh()
+            # nn.Sigmoid()
+            # nn.Softmax(dim=-1)
             # nn.LogSoftmax(dim=-1)
         )
 
