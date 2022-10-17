@@ -49,6 +49,7 @@ With inverted softmax
 ## Data Preparing 
 
 Please refer to [ArrowLuo/CLIP4Clip](https://github.com/ArrowLuo/CLIP4Clip) to get data annotation.
+For vatex, please refer to https://eric-xw.github.io/vatex-website/download.html and dataloader_vatex_retrieval.py to prepare VATEX dataset, and get the split file from https://github.com/cshizhe/hgr_v2t.
 
 ## Usage
 * For msrvtt, 
