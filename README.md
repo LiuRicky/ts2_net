@@ -1,6 +1,6 @@
 # TS2-Net: Token Shift and Selection Transformer for Text-Video Retrieval
 
-(**Oct. 17th, 2022**) We release part of our docker file below [issue 3](https://github.com/yuqi657/ts2_net/issues/3) for reimplementation. If you want to compare with our work but cannot fully reimplement the number due to many factors (e.g. raw video format, type of GPUs), one practice is, in your work, you can use the number reimplemented in your environment and make a footnote, based on the baseline in your environment and make further exploration.
+(**Oct. 17th, 2022**) We release part of our docker file below [issue 3](https://github.com/yuqi657/ts2_net/issues/3) for reimplementation. 
 
 Our paper is accepted by ECCV2022. Here is the [link of our paper.](https://www.ecva.net/papers/eccv_2022/papers_ECCV/papers/136740311.pdf)
 
